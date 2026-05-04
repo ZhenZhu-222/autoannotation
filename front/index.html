@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutoAnnotation</title>
+    <link rel="icon" href="data:,">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/front/style.css?v=20260504j">
+</head>
+<body>
+<div id="app">
+    <!-- ===== Top Bar with Tabs ===== -->
+    <header class="topbar">
+        <div class="topbar-left">
+            <div class="topbar-logo">
+                <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M3 9h18"/><circle cx="15" cy="15" r="2"/></svg>
+            </div>
+            <h1>AutoAnnotation</h1>
+        </div>
+        <nav class="nav-tabs" aria-label="主导航">
+            <div class="nav-group nav-group-management" aria-label="管理">
+                <button class="nav-tab active" data-panel-target="panel-tasks">
+                    <span class="icon"><svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
+                    任务中心
+                </button>
+                <button class="nav-tab" data-panel-target="panel-video">
+                    <span class="icon"><svg viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="2.18"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/></svg></span>
+                    资源中心
+                </button>
+            </div>
+            <div class="nav-group nav-group-production" aria-label="生产">
+                <button class="nav-tab" data-panel-target="panel-annotate">
+                    <span class="icon"><svg viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></span>
+                    权重打标
+                </button>
+                <button class="nav-tab" data-panel-target="panel-qwen">
+                    <span class="icon"><svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span>
+                    AI打标
+                </button>
+                <button class="nav-tab" data-panel-target="panel-refine">
+                    <span class="icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6"/><path d="M9 15h3"/><path d="M15 9l4-4"/><path d="M14 10l1 1"/></svg></span>
+                    数据精修
+                </button>
+                <button class="nav-tab" data-panel-target="panel-remap">
+                    <span class="icon"><svg viewBox="0 0 24 24"><path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg></span>
+                    ID调整
+                </button>
+                <button class="nav-tab" data-panel-target="panel-train">
+                    <span class="icon"><svg viewBox="0 0 24 24"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg></span>
+                    权重训练
+                </button>
+            </div>
+        </nav>
+        <div class="topbar-right">
+            <div class="health" id="healthBadge">服务检查中</div>
+            <div class="user-menu">
+                <button id="btnUserMenu" class="minor" type="button">
+                    <span id="currentUsername">未登录</span>
+                    <span id="currentRoleBadge" class="role-badge">-</span>
+                </button>
+                <div id="userMenuDropdown" class="user-menu-dropdown hidden">
+                    <button id="btnChangePassword" type="button">修改密码</button>
+                    <a id="linkUserAdmin" href="/front/users.html" data-admin-only>业务人员管理</a>
+                    <a id="linkLicenseInfo" href="/front/license.html" data-admin-only>License</a>
+                    <button id="btnLogout" type="button">退出登录</button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- ===== Main Content ===== -->
+    <main class="main-content">
+
+        <section id="panel-tasks" class="card switch-panel active">
+            <div class="task-page-head">
+                <div>
+                    <h2>任务中心</h2>
+                    <div id="taskBoardSubtitle" class="task-subtitle">加载任务中...</div>
+                </div>
+                <div class="actions">
+                    <button id="taskCreateAssign" class="primary hidden" type="button" data-admin-only>分派数据集</button>
+                    <button id="taskRefreshBoard" class="minor" type="button">刷新任务</button>
+                </div>
+            </div>
+            <div id="taskMetrics" class="task-metrics">
+                <div class="task-metric">
+                    <span class="task-metric-label">可见数据集</span>
+                    <strong id="taskMetricTotal">0</strong>
+                </div>
+                <div class="task-metric" data-admin-only>
+                    <span id="taskMetricAssignedLabel" class="task-metric-label">待验收</span>
+                    <strong id="taskMetricAssigned">0</strong>
+                </div>
+                <div class="task-metric" data-admin-only>
+                    <span class="task-metric-label">未分派</span>
+                    <strong id="taskMetricUnassigned">0</strong>
+                </div>
+                <div class="task-metric">
+                    <span class="task-metric-label">当前身份</span>
+                    <strong id="taskMetricRole">-</strong>
+                </div>
+            </div>
+            <div id="taskBoard" class="task-board"></div>
+            <div class="task-ledger-section">
+                <div class="task-ledger-head">
+                    <div>
+                        <h3>任务流水单</h3>
+                        <p class="help-text">记录分派、提交验收、验收结果、自动打标、抽帧和训练，方便查“谁在什么时间做了什么”。</p>
+                    </div>
+                    <button id="btnRefreshTaskLedger" class="minor" type="button">
+                        <span class="icon"><svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></span>
+                        刷新流水
+                    </button>
+                    <button id="btnClearTaskLedger" class="danger" type="button" data-admin-only>
+                        格式化流水
+                    </button>
+                </div>
+                <div id="taskLedgerTable" class="task-ledger-table"></div>
+            </div>
+        </section>
+
+        <!-- Panel: Resource Center -->
+        <section id="panel-video" class="card switch-panel">
+            <div class="resource-head">
+                <div>
+                    <h2>资源中心</h2>
+                    <p class="help-text">数据集、视频抽帧和模型权重都在这里维护；任务中心只负责分派和验收。</p>
+                </div>
+                <div class="resource-metrics">
+                    <div><span>数据集</span><strong id="resourceMetricDatasets">0</strong></div>
+                    <div><span>图片</span><strong id="resourceMetricImages">0</strong></div>
+                    <div><span>权重</span><strong id="resourceMetricModels">0</strong></div>
+                </div>
+            </div>
+
+            <div class="resource-layout">
+                <div class="resource-column">
+                    <div class="card nested-card resource-block">
+                        <h3>上传图片目录</h3>
+                        <p class="help-text">把本地图片目录导入为平台数据集，支持同目录 txt 或 images/labels 结构。</p>
+                        <div class="form-row">
+                            <label>数据集名称</label>
+                            <input type="text" id="resourceFolderName" placeholder="例如 road_camera_a">
+                        </div>
+                        <div class="form-row">
+                            <label>图片目录</label>
+                            <div class="file-picker">
+                                <button id="btnPickResourceFolder" type="button" class="btn-link minor file-pick-btn">
+                                    <span class="icon"><svg viewBox="0 0 24 24"><path d="M3 7h5l2 2h11v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 7V5a2 2 0 0 1 2-2h4l2 2h4"/></svg></span>
+                                    选择目录
+                                </button>
+                                <input type="file" id="resourceFolderInput" webkitdirectory directory multiple>
+                                <span id="resourceFolderFileName" class="file-picker-name">未选择目录</span>
+                            </div>
+                        </div>
+                        <div class="actions">
+                            <button id="btnResourceUploadFolder" class="primary" type="button">
+                                <span class="icon"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></span>
+                                导入数据集
+                            </button>
+                        </div>
+                        <div class="status-box" id="resourceFolderStatus">等待导入</div>
+                    </div>
+
+                    <div class="card nested-card resource-block">
+                        <h3>上传视频并抽帧</h3>
+                        <p class="help-text">视频会先上传或按本机路径导入，再按间隔抽帧生成一个数据集。</p>
+                    <div class="form-row">
+                        <label>视频文件</label>
+                        <div class="file-picker">
+                            <button id="btnPickVideoFile" type="button" class="btn-link minor file-pick-btn">
+                                <span class="icon"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></span>
+                                选择视频
+                            </button>
+                            <input type="file" id="videoFile" accept="video/*">
+                            <span id="videoFileName" class="file-picker-name">未选择任何文件</span>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <label>本机路径导入</label>
+                        <div>
+                            <input type="text" id="videoLocalPath" placeholder="例如 /Users/zhao/Movies/demo.mp4 或 iCloud 文件绝对路径">
+                            <p class="help-text">如果浏览器选择 iCloud 视频会卡住，可直接粘贴本机绝对路径，服务端会在本机复制后再抽帧。</p>
+                        </div>
+                    </div>
+                    <div class="form-row inline">
+                        <div>
+                            <label>抽帧间隔(秒)</label>
+                            <input type="number" id="sampleSeconds" min="0.01" step="0.1" value="1.0">
+                        </div>
+                        <div>
+                            <label>图片集名称</label>
+                            <input type="text" id="extractImagesetName" placeholder="例如 road_camera_a">
+                        </div>
+                        <div>
+                            <label>操作人</label>
+                            <input type="text" id="extractOperator" placeholder="例如 alice">
+                        </div>
+                    </div>
+                    <div class="actions">
+                        <button id="btnUploadExtract" class="primary">
+                            <span class="icon"><svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg></span>
+                            开始抽帧
+                        </button>
+                        <button id="btnCancelExtract" class="minor">
+                            <span class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></span>
+                            取消
+                        </button>
+                    </div>
+                    <div class="status-box" id="extractStatus">等待抽帧任务</div>
+                </div>
+                </div>
+
+                <div class="resource-column">
+                    <div class="card nested-card resource-block">
+                        <h3>上传模型权重</h3>
+                        <p class="help-text">上传外部 .pt/.onnx 权重，所有人可选用；下载和删除仍仅限管理员。</p>
+                        <div class="form-row">
+                            <label>模型文件 (.pt / .onnx)</label>
+                            <div class="file-picker">
+                                <button id="btnPickModelFile" type="button" class="btn-link minor file-pick-btn">
+                                    <span class="icon"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></span>
+                                    选择权重
+                                </button>
+                                <input type="file" id="modelFile" accept=".pt,.onnx">
+                                <span id="modelFileName" class="file-picker-name">未选择权重文件</span>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <label>类别文件（ONNX 可选）</label>
+                            <div class="file-picker">
+                                <button id="btnPickClassesFile" type="button" class="btn-link minor file-pick-btn">
+                                    <span class="icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="14" y2="17"/></svg></span>
+                                    选择类别文件
+                                </button>
+                                <input type="file" id="classesFile" accept=".txt,.json,.yaml,.yml">
+                                <span id="classesFileName" class="file-picker-name">未选择类别文件</span>
+                            </div>
+                        </div>
+                        <div class="actions">
+                            <button id="btnUploadModel" class="primary">
+                                <span class="icon"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></span>
+                                上传权重
+                            </button>
+                        </div>
+                        <div class="status-box" id="modelUploadStatus">未上传</div>
+                    </div>
+
+                    <div class="card nested-card resource-block">
+                        <div class="resource-list-head">
+                            <div>
+                                <h3>权重列表</h3>
+                                <p class="help-text">训练产出的系统权重和手动上传的权重都会出现在这里。</p>
+                            </div>
+                            <button id="btnRefreshResourceModels" class="minor" type="button">
+                                <span class="icon"><svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></span>
+                                刷新
+                            </button>
+                        </div>
+                        <div id="resourceModelList" class="resource-list compact"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card nested-card resource-block resource-wide">
+                <div class="resource-list-head">
+                    <div>
+                        <h3>数据集列表</h3>
+                        <p class="help-text">管理员看到全部数据集；业务人员只看到自己创建或被分派的数据集。</p>
+                    </div>
+                    <div class="actions">
+                        <button id="btnRefreshResourceImagesets" class="minor" type="button">
+                            <span class="icon"><svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></span>
+                            刷新
+                        </button>
+                    </div>
+                </div>
+                <div id="resourceImagesetList" class="resource-list"></div>
+            </div>
+
+            <div class="card nested-card resource-block resource-wide">
+                <h3>图片集预览与清理</h3>
+                <p class="help-text">这里用于查看图片、按条件筛选、管理员清理无效图片。快捷键：<code>[</code> 上一页，<code>]</code> 下一页，<code>A</code> 全选/反选，<code>Delete</code> 删除选中。</p>
+                <div class="form-row inline">
+                    <div>
+                        <label>选择图片集</label>
+                        <select id="galleryImageset"></select>
+                    </div>
+                    <div class="actions align-end">
+                        <button id="btnRefreshImagesets" class="minor">
+                            <span class="icon"><svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></span>
+                            刷新
+                        </button>
+                        <button id="btnLoadGallery" class="primary">加载</button>
+                        <button id="btnRenameImageset" class="minor">改名</button>
+                        <button id="btnAssignImageset" class="minor" data-admin-only>分派</button>
+                        <button id="btnDeleteImageset" class="danger" data-admin-only>删除</button>
+                        <button id="btnDownloadImageset" class="minor" data-admin-only>下载</button>
+                    </div>
+                </div>
+                <div class="form-row inline">
+                    <div>
+                        <label>标注筛选</label>
+                        <select id="galleryHasLabelFilter">
+                            <option value="">全部</option>
+                            <option value="true">仅有txt</option>
+                            <option value="false">仅无txt</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>文件名关键字</label>
+                        <input type="text" id="galleryKeyword" placeholder="例如 frame_0001">
+                    </div>
+                </div>
+                <div class="actions">
+                    <button id="btnSelectAll" class="minor">全选/反选</button>
+                    <button id="btnBatchDelete" class="danger" data-admin-only>
+                        <span class="icon"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></span>
+                        删除选中
+                    </button>
+                </div>
+                <div id="galleryFilterHint" class="help-text">筛选统计加载中...</div>
+                <div class="status-box" id="galleryStatus">未加载图片</div>
+                <div class="actions">
+                    <button id="btnGalleryPrev" class="minor">
+                        <span class="icon"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></span>
+                        上一页
+                    </button>
+                    <button id="btnGalleryNext" class="minor">
+                        下一页
+                        <span class="icon" style="margin-right:0;margin-left:5px"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></span>
+                    </button>
+                    <span id="galleryPagerInfo" class="muted-text">第 0 / 0 页</span>
+                </div>
+                <div id="galleryGrid" class="gallery-grid"></div>
+            </div>
+        </section>
+
+        <!-- Panel: Weight Annotation — linear top-to-bottom flow -->
+        <section id="panel-annotate" class="card switch-panel">
+            <h2>权重自动打标</h2>
+            <p class="help-text">按顺序操作：选数据 -> 选模型 -> 勾选类别 -> 确认映射 -> 开始打标。<code>Ctrl/Cmd+Enter</code> 快捷启动。</p>
+
+            <!-- Step 1: Data Source -->
+            <div class="card nested-card" style="margin-bottom:10px">
+                <h3><span class="step-num">1</span> 选择数据源</h3>
+                <div class="form-row inline">
+                    <div id="annotateSourceImageset">
+                        <label>图片集</label>
+                        <select id="annotateImageset"></select>
+                    </div>
+                    <div class="actions align-end">
+                        <button id="btnRefreshAnnotateImagesets" class="minor">
+                            <span class="icon"><svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></span>
+                            刷新
+                        </button>
+                        <button id="btnPreviewAnnotateImageset" class="minor">
+                            <span class="icon"><svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></span>
+                            预览数据集
+                        </button>
+                        <button id="btnRenameAnnotateImageset" class="minor">改名</button>
+                        <button id="btnDownloadAnnotateImageset" class="minor" data-admin-only>下载</button>
+                    </div>
+                </div>
+                <p class="help-text">新数据集请先到“资源中心”导入；这里专心做权重打标。</p>
+                <div id="annotateInlinePreview" class="inline-preview"></div>
+            </div>
+
+            <!-- Step 2: Model -->
+            <div class="card nested-card" style="margin-bottom:10px">
+                <h3><span class="step-num">2</span> 选择模型</h3>
+                <div class="form-row inline">
+                    <div>
+                        <label>已保存模型</label>
+                        <select id="modelSelect"></select>
+                    </div>
+                    <div class="actions align-end">
+                        <button id="btnRefreshModels" class="minor">
+                            <span class="icon"><svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></span>
+                            刷新
+                        </button>
+                        <button id="btnLoadClasses" class="primary">读取类别</button>
+                        <button id="btnRenameModel" class="minor">改名</button>
+                        <button id="btnDownloadSelectedModel" class="minor" data-admin-only>下载</button>
+                        <button id="btnDeleteModel" class="danger" data-admin-only>删除</button>
+                    </div>
+                </div>
+                <p class="help-text">上传新权重请到“资源中心”；这里选择已有权重并读取类别。</p>
+            </div>
+
+            <!-- Step 3: Output Classes + Class Mapping -->
+            <div class="card nested-card" style="margin-bottom:10px">
+                <h3><span class="step-num">3</span> 类别映射</h3>
+
+                <div class="form-row">
+                    <label>输出类别（每行一个，0-based，自定义你想要的最终标注类别）</label>
+                    <textarea id="targetClassesText" rows="3" placeholder="vehicle&#10;person&#10;truck"></textarea>
+                </div>
+                <div class="actions">
+                    <button id="btnApplyTargetClasses" class="primary">应用输出类别</button>
+                    <button id="btnClearTargetClasses" class="minor">清空（用模型原始类别）</button>
+                </div>
+                <div id="targetClassesStatus" class="status-box">未设置自定义类别，将使用模型原始类别。</div>
+
+                <p class="help-text" style="margin-top:10px">勾选需要的来源类别，右侧选映射到哪个输出 ID。不需要的取消勾选即可跳过。</p>
+                <div id="classChecklist" class="checklist"></div>
+                <div class="actions" style="margin-top:8px">
+                    <button id="btnClassAll" class="minor">全选</button>
+                    <button id="btnClassNone" class="minor">清空</button>
+                    <button id="btnDefaultMapping" class="minor">默认映射</button>
+                    <button id="btnConfirmClassMapping" class="primary">确认映射（必做）</button>
+                    <span id="mappingConfirmBadge" class="muted-text">未确认</span>
+                </div>
+                <div id="mappingConfirmStatus" class="status-box" style="margin-top:6px">未确认映射</div>
+            </div>
+
+            <!-- Hidden preset elements (kept for JS compat, not shown) -->
+            <select id="classPresetSelect" style="display:none"></select>
+            <input type="text" id="classPresetName" style="display:none">
+
+            <!-- Step 4: Parameters + Start -->
+            <div class="card nested-card">
+                <h3><span class="step-num">4</span> 参数与启动</h3>
+                <div class="form-row inline">
+                    <div>
+                        <label>Conf</label>
+                        <input type="number" id="annotateConf" min="0" max="1" step="0.01" value="0.25">
+                    </div>
+                    <div>
+                        <label>IoU</label>
+                        <input type="number" id="annotateIou" min="0" max="1" step="0.01" value="0.45">
+                    </div>
+                    <div>
+                        <label>Device</label>
+                        <input type="text" id="annotateDevice" placeholder="0 / cpu / mps">
+                    </div>
+                    <div>
+                        <label>标签类型</label>
+                        <select id="annotateLabelTask">
+                            <option value="detect" selected>Detect bbox</option>
+                            <option value="segment">YOLO Seg polygon</option>
+                            <option value="obb">YOLO OBB 四点框</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>标注模式</label>
+                        <select id="labelMode">
+                            <option value="append" selected>追加</option>
+                            <option value="replace">覆盖</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row inline">
+                    <div>
+                        <label>轮次标识</label>
+                        <input type="text" id="roundTag" placeholder="round-2">
+                    </div>
+                    <div>
+                        <label>操作人</label>
+                        <input type="text" id="annotateOperator" placeholder="alice">
+                    </div>
+                    <div>
+                        <label class="check-item">
+                            <input type="checkbox" id="updateImagesetLabels" checked>
+                            <span>结果回写到图片集</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="actions" style="margin-top:8px">
+                    <button id="btnStartAnnotate" class="primary">
+                        <span class="icon"><svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg></span>
+                        开始打标
+                    </button>
+                    <button id="btnCancelAnnotate" class="minor">
+                        <span class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></span>
+                        取消
+                    </button>
+                    <button id="btnRollbackCurrentAnnotate" class="danger">撤回回写</button>
+                </div>
+
+                <div class="status-box" id="annotateStatus" style="margin-top:8px">等待打标任务</div>
+                <div id="artifacts" class="artifacts"></div>
+            </div>
+        </section>
+
+        <!-- Panel: Qwen VLM -->
+        <section id="panel-qwen" class="card switch-panel">
+            <h2>AI 零样本打标</h2>
+            <p class="help-text">无权重起步：选图片集 -> 描述目标 -> 执行并验收。快捷键：<code>Ctrl/Cmd + Enter</code> 启动。</p>
+            <div class="panel-steps">
+                <span class="step-tag"><span class="step-num">1</span>图片集</span>
+                <span class="step-separator">></span>
+                <span class="step-tag"><span class="step-num">2</span>描述/示例</span>
+                <span class="step-separator">></span>
+                <span class="step-tag"><span class="step-num">3</span>参数</span>
+                <span class="step-separator">></span>
+                <span class="step-tag"><span class="step-num">4</span>启动</span>
+            </div>
+            <div class="form-row inline">
+                <div id="aiSourceImageset">
+                    <label>图片集</label>
+                    <select id="aiImagesetSelect"></select>
+                </div>
+                <div class="actions align-end">
+                    <button id="btnRefreshAiResources" class="minor">
+                        <span class="icon"><svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></span>
+                        刷新
+                    </button>
+                    <button id="btnPreviewAiImageset" class="minor">
+                        <span class="icon"><svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></span>
+                        预览数据集
+                    </button>
+                    <button id="btnRenameAiImageset" class="minor">改名</button>
+                    <button id="btnDownloadAiImageset" class="minor">下载</button>
+                </div>
+            </div>
+            <p class="help-text">新数据集请先到“资源中心”导入；这里专心做 AI 打标。</p>
+            <div id="aiInlinePreview" class="inline-preview"></div>
+
+            <div class="form-row inline">
+                <div>
+                    <label>AI 模型</label>
+                    <input type="text" id="qwenModelName" placeholder="留空使用系统默认模型">
+                </div>
+                <div>
+                    <label>API Key（留空使用环境变量）</label>
+                    <input type="password" id="qwenApiKey" placeholder="sk-...">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <label>任务描述</label>
+                <textarea id="qwenPrompt" rows="3" placeholder="例如：请帮我把所有斑马线标注出来。"></textarea>
+            </div>
+            <div class="form-row">
+                <label>参考图片（可选，多张）</label>
+                <div class="file-picker">
+                    <button id="btnPickQwenRefs" type="button" class="btn-link minor file-pick-btn">
+                        <span class="icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></span>
+                        选择参考图
+                    </button>
+                    <input type="file" id="qwenRefImages" accept="image/*" multiple>
+                    <span id="qwenRefFilesName" class="file-picker-name">未选择任何文件</span>
+                </div>
+                <p class="help-text">抽象目标建议 1~6 张示例图；普通目标仅文字也可。</p>
+                <div id="qwenRefSummary" class="help-text">未添加参考图片</div>
+                <div id="qwenRefList" class="file-list"></div>
+            </div>
+
+                <div class="form-row inline">
+                    <div>
+                        <label>输出标签类型</label>
+                        <select id="qwenLabelTask">
+                            <option value="detect" selected>Detect bbox</option>
+                            <option value="segment">YOLO Seg polygon</option>
+                            <option value="obb">YOLO OBB 四点框</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>操作人</label>
+                        <input type="text" id="aiAnnotateOperator" placeholder="alice">
+                </div>
+                <div>
+                    <label>轮次标识</label>
+                    <input type="text" id="aiRoundTag" placeholder="ai-round-1">
+                </div>
+            </div>
+
+            <div class="form-row inline">
+                <div>
+                    <label>旧标注模式</label>
+                    <select id="aiLabelMode">
+                        <option value="append" selected>追加（推荐）</option>
+                        <option value="replace">覆盖</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="check-item">
+                        <input type="checkbox" id="aiUpdateImagesetLabels" checked>
+                        <span>回写到图片集 labels/</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-row inline">
+                <div>
+                    <label class="check-item">
+                        <input type="checkbox" id="qwenStrictSizeCheck" checked>
+                        <span>严格尺寸校验</span>
+                    </label>
+                </div>
+                <div>
+                    <label>重试次数</label>
+                    <input type="number" id="qwenSizeRetry" min="0" max="3" step="1" value="1">
+                </div>
+            </div>
+
+            <div class="form-row inline">
+                <div>
+                    <label>精度模式</label>
+                    <select id="qwenPrecisionMode">
+                        <option value="strict" selected>strict</option>
+                        <option value="fast">fast</option>
+                    </select>
+                </div>
+                <div>
+                    <label>采样次数</label>
+                    <input type="number" id="qwenSampleCount" min="1" max="7" step="1" value="3">
+                </div>
+            </div>
+
+            <div class="form-row inline">
+                <div>
+                    <label>一致性阈值</label>
+                    <input type="number" id="qwenMinConsensusRate" min="0" max="1" step="0.01" value="0.67">
+                </div>
+                <div>
+                    <label>去重 IoU</label>
+                    <input type="number" id="qwenDuplicateIou" min="0.5" max="0.9999" step="0.0001" value="0.98">
+                </div>
+            </div>
+
+
+            <div class="actions">
+                <button id="btnQwenAutoAnnotate" class="primary">
+                    <span class="icon"><svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg></span>
+                    开始 AI 打标
+                </button>
+                <button id="btnCancelQwen" class="minor">
+                    <span class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></span>
+                    取消
+                </button>
+                <button id="btnRollbackCurrentQwen" class="danger">撤回回写</button>
+            </div>
+
+            <div id="qwenStatus" class="status-box">等待 AI 打标任务</div>
+            <div id="qwenArtifacts" class="artifacts"></div>
+        </section>
+
+        <!-- Panel: Class ID Remap -->
+        <section id="panel-remap" class="card switch-panel">
+            <h2>类别 ID 调整</h2>
+            <p class="help-text">选择图片集 → 查看当前 ID/类名/使用量 → 修改 ID（类名不变）→ 应用。适用于多轮标注后合并 ID 或训练前整理。</p>
+            <div class="form-row inline">
+                <div>
+                    <label>图片集</label>
+                    <select id="remapImageset"></select>
+                </div>
+                <div class="actions align-end">
+                    <button id="btnRefreshRemapImagesets" class="minor">
+                        <span class="icon"><svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></span>
+                        刷新
+                    </button>
+                    <button id="btnLoadClassMapping" class="primary">加载类别映射</button>
+                    <button id="btnRenameRemapImageset" class="minor">改名</button>
+                    <button id="btnDownloadRemapImageset" class="minor">下载</button>
+                </div>
+            </div>
+            <div id="remapStatus" class="status-box">请选择图片集并点击"加载类别映射"</div>
+            <div id="remapTableWrap" style="display:none">
+                <table class="remap-table">
+                    <thead>
+                        <tr><th>当前ID</th><th>类名</th><th>标注数</th><th>新ID</th></tr>
+                    </thead>
+                    <tbody id="remapTableBody"></tbody>
+                </table>
+                <div class="actions" style="margin-top:10px">
+                    <button id="btnApplyRemap" class="primary">
+                        <span class="icon"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span>
+                        应用ID调整
+                    </button>
+                    <button id="btnResetRemap" class="minor">重置</button>
+                </div>
+            </div>
+            <div id="remapResult" class="artifacts"></div>
+        </section>
+
+        <!-- Panel: YOLO Training -->
+        <section id="panel-train" class="card switch-panel">
+            <h2>YOLO 权重训练</h2>
+            <p class="help-text">选择已打标数据集 -> 配置训练参数 -> 开始训练。若类 ID 有跳号，可继续打标；但训练前请先在“类 ID 调整”里整理为连续编号。</p>
+            <div class="panel-steps">
+                <span class="step-tag"><span class="step-num">1</span>选数据集</span>
+                <span class="step-separator">></span>
+                <span class="step-tag"><span class="step-num">2</span>配置参数</span>
+                <span class="step-separator">></span>
+                <span class="step-tag"><span class="step-num">3</span>训练</span>
+                <span class="step-separator">></span>
+                <span class="step-tag"><span class="step-num">4</span>下载/保存</span>
+            </div>
+
+            <div class="card nested-card" style="margin-bottom:10px">
+                <h3><span class="step-num">1</span> 数据集</h3>
+                <div class="form-row inline">
+                    <div>
+                        <label>图片集</label>
+                        <select id="trainImageset"></select>
+                    </div>
+                    <div class="actions align-end">
+                        <button id="btnRefreshTrainImagesets" class="minor">
+                            <span class="icon"><svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></span>
+                            刷新
+                        </button>
+                        <button id="btnPreviewTrainImageset" class="minor">
+                            <span class="icon"><svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></span>
+                            预览数据集
+                        </button>
+                        <button id="btnRenameTrainImageset" class="minor">改名</button>
+                        <button id="btnDownloadTrainImageset" class="minor">下载</button>
+                    </div>
+                </div>
+                <div id="trainDatasetInfo" class="status-box">请选择数据集</div>
+                <div class="help-text" style="margin-top:8px">先看下方当前打标结果，再决定继续训练还是直接下载。</div>
+                <div id="trainInlinePreview" style="margin-top:10px"></div>
+            </div>
+
+            <div class="card nested-card" style="margin-bottom:10px">
+                <h3><span class="step-num">2</span> 训练参数</h3>
+                <div class="form-row inline">
+                    <div>
+                        <label>训练任务</label>
+                        <select id="trainTask">
+                            <option value="detect" selected>Detect bbox</option>
+                            <option value="segment">YOLO Seg</option>
+                            <option value="obb">YOLO OBB</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>基础模型</label>
+                        <select id="trainBaseModelSelect">
+                            <option value="yolo11n.pt">yolo11n.pt (nano)</option>
+                            <option value="yolo11s.pt">yolo11s.pt (small)</option>
+                            <option value="yolo11m.pt">yolo11m.pt (medium)</option>
+                            <option value="yolo11l.pt">yolo11l.pt (large)</option>
+                            <option value="yolo11x.pt">yolo11x.pt (xlarge)</option>
+                            <option value="yolo11n-seg.pt">yolo11n-seg.pt (seg nano)</option>
+                            <option value="yolo11n-obb.pt">yolo11n-obb.pt (obb nano)</option>
+                            <option value="__system__">系统已有模型...</option>
+                        </select>
+                    </div>
+                    <div id="trainSystemModelWrap" style="display:none">
+                        <label>选择系统模型</label>
+                        <select id="trainSystemModelSelect"></select>
+                        <div class="actions" style="margin-top:6px">
+                            <button id="btnRenameTrainSystemModel" class="minor" type="button">改名</button>
+                            <button id="btnDownloadTrainSystemModel" class="minor" type="button">下载</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-row inline">
+                    <div>
+                        <label>Epochs</label>
+                        <input type="number" id="trainEpochs" min="1" max="1000" step="1" value="50">
+                    </div>
+                    <div>
+                        <label>Batch Size</label>
+                        <input type="number" id="trainBatchSize" min="1" max="256" step="1" value="16">
+                    </div>
+                    <div>
+                        <label>Image Size</label>
+                        <input type="number" id="trainImgSize" min="32" max="1920" step="32" value="640">
+                    </div>
+                    <div>
+                        <label>Device</label>
+                        <input type="text" id="trainDevice" placeholder="留空自动检测">
+                    </div>
+                </div>
+                <div class="form-row inline">
+                    <div>
+                        <label>操作人</label>
+                        <input type="text" id="trainOperator" placeholder="alice">
+                    </div>
+                    <div>
+                        <label class="check-item">
+                            <input type="checkbox" id="trainSaveToSystem" checked>
+                            <span>训练完成后保存到系统模型库</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card nested-card">
+                <h3><span class="step-num">3</span> 启动训练</h3>
+                <div class="actions">
+                    <button id="btnStartTrain" class="primary">
+                        <span class="icon"><svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg></span>
+                        开始训练
+                    </button>
+                    <button id="btnCancelTrain" class="minor">
+                        <span class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></span>
+                        取消
+                    </button>
+                </div>
+                <div class="status-box" id="trainStatus">等待训练任务</div>
+                <div id="trainArtifacts" class="artifacts"></div>
+            </div>
+        </section>
+
+
+        <section id="panel-refine" class="card switch-panel">
+            <h2>数据精修</h2>
+            <p class="help-text">用于训练前逐张精修框：删除不准框、拖动/缩放、修改类别、拖拽新增框，并直接回写当前图片集标签。快捷键：<code>A/D</code> 切图，<code>W</code> 开启新增框，新增模式下 <code>A/D</code> 切标签，<code>S</code> 结束新增，<code>Q</code>/<code>Delete</code> 删除选中框，<code>Ctrl/Cmd+S</code> 保存。</p>
+            <div class="panel-steps">
+                <span class="step-tag"><span class="step-num">1</span>选数据集</span>
+                <span class="step-separator">></span>
+                <span class="step-tag"><span class="step-num">2</span>选图片</span>
+                <span class="step-separator">></span>
+                <span class="step-tag"><span class="step-num">3</span>精修框</span>
+                <span class="step-separator">></span>
+                <span class="step-tag"><span class="step-num">4</span>保存/回滚</span>
+            </div>
+
+            <div class="card nested-card" style="margin-bottom:10px">
+                <h3><span class="step-num">1</span> 数据源</h3>
+                <div class="form-row inline">
+                    <div>
+                        <label>图片集</label>
+                        <select id="refineImageset"></select>
+                    </div>
+                    <div>
+                        <label>图片</label>
+                        <select id="refineImageSelect"></select>
+                    </div>
+                    <div>
+                        <label>操作人</label>
+                        <input type="text" id="refineOperator" placeholder="alice">
+                    </div>
+                    <div class="actions align-end">
+                        <button id="btnRefreshRefineImagesets" class="minor">
+                            <span class="icon"><svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></span>
+                            刷新
+                        </button>
+                        <button id="btnPreviewRefineImageset" class="minor">
+                            <span class="icon"><svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></span>
+                            预览数据集
+                        </button>
+                        <button id="btnRenameRefineImageset" class="minor">改名</button>
+                        <button id="btnDownloadRefineImageset" class="minor">下载</button>
+                    </div>
+                </div>
+                <div id="refineStatus" class="status-box">请选择图片集</div>
+            </div>
+
+            <div class="refine-layout">
+                <div class="refine-main card nested-card">
+                    <div class="refine-toolbar">
+                        <div class="actions">
+                            <button id="btnRefinePrevImage" class="minor">上一张</button>
+                            <button id="btnRefineNextImage" class="minor">下一张</button>
+                            <button id="btnRefineCreateBox" class="minor">新增框</button>
+                            <button id="btnRefineDeleteSelected" class="danger">删除选中框</button>
+                        </div>
+                        <div class="actions">
+                            <button id="btnRefineRollback" class="minor">撤销上次保存</button>
+                            <button id="btnRefineSave" class="primary">保存当前图</button>
+                        </div>
+                    </div>
+                    <div id="refineImageStatus" class="status-box">请选择图片</div>
+                    <div class="refine-canvas-shell">
+                        <div id="refineStage" class="refine-stage" tabindex="-1">
+                            <img id="refineImage" alt="refine image">
+                            <div id="refineOverlay" class="refine-overlay"></div>
+                            <div id="refineCanvasEmpty" class="refine-canvas-empty">请选择图片后开始精修</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="refine-side">
+                    <div class="card nested-card">
+                        <h3><span class="step-num">2</span> 图片信息</h3>
+                        <div id="refineMeta"></div>
+                    </div>
+
+                    <div class="card nested-card">
+                        <h3><span class="step-num">3</span> 新框默认类别</h3>
+                        <div class="form-row">
+                            <label>形状类型</label>
+                            <select id="refineShapeType">
+                                <option value="detect" selected>Detect bbox</option>
+                                <option value="segment">Segment polygon</option>
+                                <option value="obb">OBB 四点框</option>
+                            </select>
+                        </div>
+                        <div class="form-row">
+                            <label>类别</label>
+                            <select id="refineNewBoxClass"></select>
+                        </div>
+                        <div class="actions">
+                            <button id="btnRefineCreateClass" class="minor">新建类别</button>
+                        </div>
+                    </div>
+
+                    <div class="card nested-card">
+                        <h3>框列表</h3>
+                        <div id="refineBoxList" class="refine-box-list"></div>
+                    </div>
+
+                    <div class="card nested-card">
+                        <h3>选中框</h3>
+                        <div id="refineSelectedEmpty" class="muted-text">请先选中一个框</div>
+                        <div id="refineSelectedPanel" style="display:none">
+                            <div class="form-row">
+                                <label>类别</label>
+                                <select id="refineSelectedClass"></select>
+                            </div>
+                            <div id="refineSelectedCoords" class="help-text"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- ===== Bottom Panel: Tasks & History ===== -->
+    <div class="bottom-panel" id="bottomPanel">
+        <div class="bottom-panel-tabs">
+            <button class="bottom-tab active" data-bottom-target="bottom-jobs">
+                任务中心
+                <span class="bottom-tab-count" id="jobsCount">0</span>
+            </button>
+            <button class="bottom-tab" data-bottom-target="bottom-history">
+                运行记录
+                <span class="bottom-tab-count" id="historyCount">0</span>
+            </button>
+            <button class="bottom-panel-toggle" id="btnToggleBottomPanel">
+                <span class="icon"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></span>
+                收起
+            </button>
+        </div>
+        <div class="bottom-panel-body">
+            <div id="bottom-jobs" class="bottom-section active">
+                <div id="jobsTable" class="jobs-table"></div>
+            </div>
+            <div id="bottom-history" class="bottom-section">
+                <div class="form-row inline" style="margin-bottom:6px">
+                    <div>
+                        <label>任务类型</label>
+                        <select id="historyJobType">
+                            <option value="">全部</option>
+                            <option value="extract">extract</option>
+                            <option value="annotate">annotate</option>
+                            <option value="qwen_annotate">AI 打标</option>
+                            <option value="train">train</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>操作人</label>
+                        <input type="text" id="historyOperator" placeholder="名字包含匹配">
+                    </div>
+                    <div class="actions align-end">
+                        <button id="btnRefreshHistory" class="minor">
+                            <span class="icon"><svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></span>
+                            刷新
+                        </button>
+                        <button id="btnSelectAllHistory" class="minor">全选</button>
+                        <button id="btnBatchDeleteHistory" class="danger">批量删除</button>
+                    </div>
+                </div>
+                <div id="historyTable" class="jobs-table"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="imagesetPreviewModal" class="modal-overlay hidden">
+  <div class="modal-box modal-lg">
+    <div class="modal-header">
+      <h3>数据集预览</h3>
+      <button class="modal-close" id="btnCloseImagesetPreview">&times;</button>
+    </div>
+    <div class="modal-toolbar">
+      <span id="previewModalStats"></span>
+      <select id="previewModalFilter">
+        <option value="">全部</option>
+        <option value="true">有标注</option>
+        <option value="false">无标注</option>
+      </select>
+    </div>
+    <div id="previewModalGrid" class="imageset-preview-grid"></div>
+    <div class="modal-footer">
+      <button id="btnPreviewModalPrev" class="minor">上一页</button>
+      <span id="previewModalPager"></span>
+      <button id="btnPreviewModalNext" class="minor">下一页</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Lightbox 图片放大 ===== -->
+<div id="lightbox" class="lightbox hidden" onclick="closeLightbox(event)">
+  <img id="lightboxImg" src="" alt="放大预览">
+</div>
+
+<div id="toast" class="toast hidden"></div>
+<div id="passwordModal" class="modal hidden">
+    <div class="modal-card small">
+        <h3>修改密码</h3>
+        <label>旧密码</label>
+        <input id="oldPasswordInput" type="password">
+        <label>新密码</label>
+        <input id="newPasswordInput" type="password">
+        <label>确认新密码</label>
+        <input id="confirmPasswordInput" type="password">
+        <div class="actions">
+            <button id="btnSubmitPassword" class="primary" type="button">保存</button>
+            <button id="btnClosePassword" class="minor" type="button">取消</button>
+        </div>
+        <div id="passwordStatus" class="help-text"></div>
+    </div>
+</div>
+<div id="assignModal" class="modal hidden">
+    <div class="modal-card assign-card">
+        <div class="assign-header">
+            <div>
+                <h3>发布/分派任务</h3>
+                <p>选择一个图片集，再勾选能看到并操作它的业务人员。</p>
+            </div>
+            <span id="assignSelectedCount" class="assign-count">已选 0 人</span>
+        </div>
+        <div class="assign-grid">
+            <div class="assign-field">
+                <label>要发布的图片集</label>
+                <select id="assignImagesetSelect"></select>
+                <div id="assignImagesetInfo" class="assign-info">未选择图片集</div>
+            </div>
+            <div class="assign-field">
+                <label>分派给业务人员</label>
+                <div id="assignOperatorList" class="check-list assign-operator-list"></div>
+            </div>
+        </div>
+        <div id="assignSummary" class="assign-summary">当前未选择业务人员</div>
+        <div class="actions assign-actions">
+            <button id="btnSubmitAssign" class="primary" type="button">保存并确认</button>
+            <button id="btnCloseAssign" class="minor" type="button">关闭</button>
+        </div>
+        <div id="assignStatus" class="assign-status"></div>
+    </div>
+</div>
+<script src="/front/ui_utils.js?v=20260425a"></script>
+<script src="/front/api.js?v=20260425a"></script>
+<script src="/front/dataset_upload.js?v=20260425a"></script>
+<script src="/front/imageset_preview.js?v=20260425b"></script>
+<script src="/front/gallery.js?v=20260503a"></script>
+<script src="/front/class_mapping.js?v=20260503a"></script>
+<script src="/front/annotate.js?v=20260503a"></script>
+<script src="/front/qwen_annotate.js?v=20260503a"></script>
+<script src="/front/jobs_history.js?v=20260503a"></script>
+<script src="/front/refine.js?v=20260503a"></script>
+<script src="/front/train.js?v=20260503a"></script>
+<script src="/front/app.js?v=20260504j"></script>
+</body>
+</html>

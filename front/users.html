@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>用户管理 - AutoAnnotation</title>
+    <link rel="stylesheet" href="/front/style.css?v=20260504a">
+</head>
+<body>
+<div class="page-shell">
+    <header class="topbar">
+        <div class="topbar-left"><h1>用户管理</h1></div>
+        <div class="topbar-right">
+            <a class="btn-link minor" href="/">返回工作台</a>
+        </div>
+    </header>
+    <main class="main-content">
+        <section class="card">
+            <h2>创建用户</h2>
+            <div class="form-row inline">
+                <div><label>用户名</label><input id="newUsername" type="text"></div>
+                <div><label>密码</label><input id="newPassword" type="password"></div>
+                <div><label>角色</label><select id="newRole"><option value="operator">operator</option><option value="admin">admin</option></select></div>
+                <div class="actions align-end"><button id="btnCreateUser" class="primary" type="button">创建</button></div>
+            </div>
+            <div id="userStatus" class="help-text"></div>
+        </section>
+        <section class="card">
+            <h2>用户列表</h2>
+            <div class="actions"><button id="btnRefreshUsers" class="minor" type="button">刷新</button></div>
+            <div id="usersTable" class="job-table"></div>
+        </section>
+    </main>
+</div>
+<script src="/front/ui_utils.js?v=20260425a"></script>
+<script src="/front/api.js?v=20260425a"></script>
+<script src="/front/users.js?v=20260504a"></script>
+</body>
+</html>

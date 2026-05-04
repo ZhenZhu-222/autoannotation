@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutoAnnotation License</title>
+    <link rel="stylesheet" href="/front/style.css?v=20260504a">
+</head>
+<body>
+<div class="page-shell">
+    <header class="topbar">
+        <div class="topbar-left"><h1>License</h1></div>
+        <div class="topbar-right"><button id="btnBack" class="minor" type="button">返回</button></div>
+    </header>
+    <main class="main-content">
+        <section class="card">
+            <h2 id="licenseTitle">授权状态</h2>
+            <div class="status-box" id="licenseMeta">加载中...</div>
+            <div class="form-row">
+                <label>当前机器指纹</label>
+                <div class="copy-row">
+                    <input id="fingerprintInput" readonly>
+                    <button id="btnCopyFingerprint" class="minor" type="button">复制</button>
+                </div>
+            </div>
+            <div id="installPanel">
+                <p class="help-text">请将机器指纹发送给供应商，获取永久授权文件 license.dat 后在此上传。</p>
+                <div class="form-row">
+                    <label>授权文件</label>
+                    <input id="licenseFile" type="file" accept=".dat,.json,application/json">
+                </div>
+                <div class="actions">
+                    <button id="btnInstallLicense" class="primary" type="button">上传授权文件</button>
+                </div>
+            </div>
+            <div class="hint" id="status"></div>
+        </section>
+    </main>
+</div>
+<script src="/front/ui_utils.js?v=20260425a"></script>
+<script src="/front/api.js?v=20260425a"></script>
+<script src="/front/license.js?v=20260504a"></script>
+</body>
+</html>

@@ -1,0 +1,40 @@
+# GPU 版本 — 需要宿主机安装 NVIDIA 驱动 + nvidia-container-toolkit
+# 构建：docker build -f Dockerfile.gpu -t autoannotation:gpu .
+# 运行：docker run --gpus all -p 8010:8010 -v ./data:/app/data autoannotation:gpu
+FROM nvidia/cuda:12.4.1-runtime-ubuntu22.04
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_DEFAULT_TIMEOUT=120 \
+    AUTOANNOTATION_HOST=0.0.0.0 \
+    AUTOANNOTATION_PORT=8010 \
+    AUTOANNOTATION_CONFIG=/app/config/runtime.json \
+    DEBIAN_FRONTEND=noninteractive
+
+# 安装 Python 3.11
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        python3.11 python3.11-venv python3.11-dev python3-pip \
+        libgl1 libglib2.0-0 && \
+    ln -sf /usr/bin/python3.11 /usr/bin/python && \
+    ln -sf /usr/bin/python3.11 /usr/bin/python3 && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY requirements-docker.txt /app/requirements-docker.txt
+RUN python -m pip install --upgrade pip setuptools wheel && \
+    pip install --retries 20 --index-url https://download.pytorch.org/whl/cu124 torch==2.11.0 torchvision==0.26.0 && \
+    pip install --retries 20 -r /app/requirements-docker.txt && \
+    pip install --retries 20 --no-deps ultralytics==8.4.31
+
+COPY app /app/app
+COPY front /app/front
+COPY config /app/config
+COPY README.md /app/README.md
+
+EXPOSE 8010
+
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8010"]

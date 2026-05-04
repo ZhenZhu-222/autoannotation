@@ -1,0 +1,13 @@
+.git
+.runtime
+.venv
+.pytest_cache
+.playwright-cli
+__pycache__
+*.pyc
+.DS_Store
+data
+output
+dist1
+dist3
+docker-data

@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutoAnnotation 登录</title>
+    <style>
+        :root { color-scheme: light; font-family: "Noto Sans SC", -apple-system, BlinkMacSystemFont, sans-serif; }
+        body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #f5f7fb; color: #1f2937; }
+        .card { width: min(420px, calc(100vw - 32px)); background: #fff; border: 1px solid #dbe5f2; border-radius: 20px; padding: 28px; box-shadow: 0 20px 60px rgba(15, 23, 42, 0.08); }
+        h1 { margin: 0 0 8px; font-size: 28px; }
+        p { margin: 0 0 20px; color: #64748b; line-height: 1.7; }
+        label { display: block; font-weight: 600; margin: 14px 0 8px; }
+        input { width: 100%; box-sizing: border-box; border: 1px solid #cbd5e1; border-radius: 12px; padding: 12px 14px; font-size: 16px; }
+        button { width: 100%; margin-top: 18px; border: 0; border-radius: 12px; padding: 12px 14px; font-size: 16px; font-weight: 700; background: #2563eb; color: white; cursor: pointer; }
+        .hint { margin-top: 12px; color: #475569; font-size: 14px; min-height: 22px; }
+        .hint.error { color: #dc2626; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>AutoAnnotation</h1>
+        <p>内网共享版入口。先登录，再进入系统。</p>
+        <label for="username">账户名</label>
+        <input id="username" value="root" autocomplete="username">
+        <label for="password">密码</label>
+        <input id="password" type="password" autocomplete="current-password">
+        <button id="btnLogin" type="button">登录</button>
+        <div class="hint" id="status"></div>
+    </div>
+    <script src="/front/auth.js?v=20260403a"></script>
+</body>
+</html>
