@@ -42,13 +42,14 @@ async function installLicense() {
   form.append("file", file);
   status.textContent = "上传并校验中...";
   status.className = "hint";
-  const resp = await fetch("/api/system/license/install", {
+  const data = await uploadFormWithProgress("/api/system/license/install", {
     method: "POST",
-    credentials: "same-origin",
     body: form,
+    statusEl: status,
+    label: "上传授权文件",
+    processingText: "上传完成，正在校验授权文件...",
   });
-  const data = await resp.json().catch(() => ({}));
-  if (!resp.ok || data.ok === false) {
+  if (data.ok === false) {
     status.textContent = data.detail || "授权文件安装失败";
     status.className = "hint error";
     return;

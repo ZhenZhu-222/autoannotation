@@ -10,4 +10,5 @@ data
 output
 dist1
 dist3
+dist*
 docker-data

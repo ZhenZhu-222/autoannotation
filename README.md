@@ -221,7 +221,9 @@ dataset/
 - 支持 `images/xxx.jpg` + `labels/xxx.txt`，也支持同目录 `xxx.jpg` + `xxx.txt`。
 - 子目录下同名文件按相对路径匹配，例如 `images/a/sample.jpg` 对应 `labels/a/sample.txt`。
 - 类别名文件支持 `classes.txt`、`names.txt`、`obj.names`、`data.yaml` / `data.yml`。
+- 文件数量不设置业务上限，也不会受 Starlette 默认 1000 文件解析上限影响；实际可上传规模仍取决于浏览器、网络、磁盘和单文件大小限制。
 - 上传成功后会展示导入图片数、标签数、类别数、未匹配标签数；类别文件为空或格式错误会直接提示原因。
+- 浏览器目录上传会逐文件发送，避免一个超大 multipart 请求断线；操作电脑和部署机器分离时，直接在页面选择目录即可。
 
 ## 发布产物与源码边界
 

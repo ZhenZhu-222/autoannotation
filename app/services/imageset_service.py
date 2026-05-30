@@ -30,7 +30,8 @@ class ImageSetService:
         if not files:
             raise HTTPException(status_code=400, detail="未上传图片文件")
 
-        with TemporaryDirectory(prefix="upload_imageset_") as tmp_dir:
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        with TemporaryDirectory(prefix="upload_imageset_", dir=DATA_DIR) as tmp_dir:
             tmp_path = Path(tmp_dir)
             try:
                 prepared = DatasetImportService.prepare_upload(files, tmp_path)

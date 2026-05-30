@@ -23,22 +23,6 @@ def test_uploaded_video_metadata_uses_relative_path(app_client):
     assert stored.startswith("uploads/videos/")
 
 
-def test_imported_local_video_metadata_uses_relative_path(app_client, tmp_path: Path):
-    client, app, _ = app_client
-    video_path = tmp_path / "local_demo.mp4"
-    video_path.write_bytes(b"fake-local-video")
-
-    resp = client.post("/api/videos/import-local", json={"path": str(video_path)})
-    assert resp.status_code == 200, resp.text
-
-    index_path = app.state.app_state.videos_index_file
-    payload = json.loads(index_path.read_text(encoding="utf-8"))
-    assert payload["videos"]
-    stored = payload["videos"][-1]["path"]
-    assert not Path(stored).is_absolute()
-    assert stored.startswith("uploads/videos/")
-
-
 def test_imageset_metadata_uses_relative_dir_path(app_client, tmp_path: Path):
     client, app, _ = app_client
     image_path = tmp_path / "sample.jpg"

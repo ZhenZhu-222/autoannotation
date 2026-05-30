@@ -1,7 +1,9 @@
 # ============================================================
 # 机器指纹计算
 # 职责：计算当前机器的稳定唯一标识，用于 License 绑定
-# 链路：硬件指标 → AUTOANNOTATION_MACHINE_ID 环境变量 → MAC+hostname 兆底
+# 策略：每个平台只读 1 个最稳定的标识 → SHA-256
+#       读不到就报错，不 fallback 到不稳定的 MAC/hostname
+#       Docker/虚拟机可通过环境变量 AUTOANNOTATION_MACHINE_ID 显式指定
 # ============================================================
 from __future__ import annotations
 
@@ -9,22 +11,11 @@ import hashlib
 import os
 import platform
 import re
-import socket
 import subprocess
-import uuid
 from pathlib import Path
 
 
-_CACHE_KEY: tuple[str, str, int, int, int, int] | None = None
 _CACHE_VALUE = ""
-
-
-# 安全读取文本文件，权限不足或不存在时返回空字符串
-def _read_text(path: str) -> str:
-    try:
-        return Path(path).read_text(encoding="utf-8", errors="ignore").strip()
-    except Exception:
-        return ""
 
 
 # 运行系统命令，超时 2 秒，失败返回空字符串
@@ -35,116 +26,62 @@ def _run(command: list[str]) -> str:
         return ""
 
 
-# Linux 指标：UUID / 主板序列号 / machine-id / CPU 序列号
-def _linux_indicators() -> list[str]:
-    values = [
-        _read_text("/sys/class/dmi/id/product_uuid"),
-        _read_text("/sys/class/dmi/id/board_serial"),
-        _read_text("/sys/class/dmi/id/product_serial"),
-        _read_text("/etc/machine-id"),
-    ]
-    cpuinfo = _read_text("/proc/cpuinfo")
-    match = re.search(r"(?im)^serial\s*:\s*(.+)$", cpuinfo)
-    if match:
-        values.append(match.group(1).strip())
-    return values
+# 每个平台只取 1 个最稳定的硬件标识
+def _get_primary_id() -> str:
+    system = platform.system().lower()
 
+    if "darwin" in system:
+        # macOS：IOPlatformUUID，主板级别，除非换主板否则不变
+        raw = _run(["ioreg", "-rd1", "-c", "IOPlatformExpertDevice"])
+        match = re.search(r'"IOPlatformUUID"\s*=\s*"([^"]+)"', raw)
+        if match:
+            return match.group(1).strip()
 
-# macOS 指标：IOPlatformUUID / 硬件序列号
-def _mac_indicators() -> list[str]:
-    raw = _run(["ioreg", "-rd1", "-c", "IOPlatformExpertDevice"])
-    values: list[str] = []
-    match = re.search(r'"IOPlatformUUID"\s*=\s*"([^"]+)"', raw)
-    if match:
-        values.append(match.group(1))
-    serial = _run(["system_profiler", "SPHardwareDataType"])
-    match = re.search(r"(?im)Serial Number.*:\s*(.+)$", serial)
-    if match:
-        values.append(match.group(1).strip())
-    return values
+    elif "linux" in system:
+        # Linux：/etc/machine-id，系统安装时生成，不变
+        try:
+            value = Path("/etc/machine-id").read_text(encoding="utf-8", errors="ignore").strip()
+            if value:
+                return value
+        except Exception:
+            pass
 
-
-# Windows 指标：产品 UUID / 主板序列号 / 处理器 ID
-def _windows_indicators() -> list[str]:
-    values: list[str] = []
-    for command in (
-        ["wmic", "csproduct", "get", "UUID"],
-        ["wmic", "baseboard", "get", "SerialNumber"],
-        ["wmic", "cpu", "get", "ProcessorId"],
-    ):
-        raw = _run(command)
+    elif "windows" in system:
+        # Windows：csproduct UUID，BIOS 级别，不变
+        raw = _run(["wmic", "csproduct", "get", "UUID"])
         lines = [x.strip() for x in raw.splitlines() if x.strip()]
         if len(lines) >= 2:
-            values.append(lines[1])
-    return values
+            return lines[1]
 
-
-# 获取主网卡 MAC 地址（过滤随机生成的虚拟 MAC）
-def _primary_mac() -> str:
-    node = uuid.getnode()
-    if node and (node >> 40) % 2 == 0:
-        return f"{node:012x}"
     return ""
-
-
-# 把多个指标值拼接后 SHA-256，产生稳定指纹字符串
-def _stable_hash(values: list[str]) -> str:
-    clean = [str(v).strip().lower() for v in values if str(v or "").strip()]
-    raw = "::".join(clean).encode("utf-8")
-    return hashlib.sha256(raw).hexdigest()
 
 
 def compute_fingerprint() -> str:
     """计算当前机器指纹。
 
-    顺序是：
-    1. 尽量读硬件/系统稳定标识；
-    2. 如果硬件指标全失败，优先使用 AUTOANNOTATION_MACHINE_ID；
-    3. 最后退到 MAC + hostname。
-
-    Docker/虚拟机部署时硬件信息经常不可用，所以第 2 步很重要。
+    优先级：
+    1. 环境变量 AUTOANNOTATION_MACHINE_ID（Docker/虚拟机用）
+    2. 平台唯一硬件标识（macOS IOPlatformUUID / Linux machine-id / Windows csproduct UUID）
+    3. 都没有 → 抛异常，不 fallback
     """
-    global _CACHE_KEY, _CACHE_VALUE
+    global _CACHE_VALUE
 
-    system = platform.system().lower()
+    # 进程内缓存，避免重复调用系统命令
+    if _CACHE_VALUE:
+        return _CACHE_VALUE
+
+    # 优先使用显式配置（Docker/虚拟机场景）
     configured = os.getenv("AUTOANNOTATION_MACHINE_ID", "").strip()
-    # 指纹会被 License / trial HMAC 反复使用，必须在一个进程内保持稳定。
-    # macOS 的 ioreg/system_profiler 偶尔超时；如果每次请求都重算，可能前后
-    # 算出不同结果，导致系统误判 trial_state.dat 被篡改而锁定。
-    cache_key = (
-        system,
-        configured,
-        id(_linux_indicators),
-        id(_mac_indicators),
-        id(_windows_indicators),
-        id(_primary_mac),
-    )
-    if _CACHE_KEY == cache_key and _CACHE_VALUE:
-        return _CACHE_VALUE
-
-    if "linux" in system:
-        values = _linux_indicators()
-    elif "darwin" in system:
-        values = _mac_indicators()
-    elif "windows" in system:
-        values = _windows_indicators()
-    else:
-        values = []
-
-    mac = _primary_mac()
-    if mac:
-        values.append(mac)
-    values = [v for v in values if str(v or "").strip()]
-    if values:
-        _CACHE_KEY = cache_key
-        _CACHE_VALUE = _stable_hash(values)
-        return _CACHE_VALUE
-
     if configured:
-        _CACHE_KEY = cache_key
-        _CACHE_VALUE = _stable_hash([configured])
+        _CACHE_VALUE = hashlib.sha256(configured.lower().encode("utf-8")).hexdigest()
         return _CACHE_VALUE
 
-    _CACHE_KEY = cache_key
-    _CACHE_VALUE = _stable_hash([_primary_mac(), socket.gethostname()])
+    # 读平台唯一标识
+    primary = _get_primary_id()
+    if not primary:
+        raise RuntimeError(
+            "无法获取机器标识，请设置环境变量 AUTOANNOTATION_MACHINE_ID 或联系支持"
+        )
+
+    _CACHE_VALUE = hashlib.sha256(primary.strip().lower().encode("utf-8")).hexdigest()
     return _CACHE_VALUE

@@ -3,21 +3,11 @@
 # ============================================================
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 from pydantic import BaseModel, Field
 
 from app.schemas.common import ClassItem
 
-@dataclass
-class PracticeResponse:
-    message: str
-    model_id: str
-    description: str
-    qwen_model: str
-    api_key: str
-    files: list
-    state: dict
+
 
 
 class AiSuggestClassesResponse(BaseModel):

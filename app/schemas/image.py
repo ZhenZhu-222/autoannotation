@@ -152,6 +152,21 @@ class ReviewSummaryResponse(BaseModel):
     counts: dict[str, int] = Field(default_factory=dict)
 
 
+class StartFolderUploadSessionRequest(BaseModel):
+    imageset_name: str | None = None
+    total_files: int = 0
+    total_bytes: int = 0
+
+
+class StartFolderUploadSessionResponse(BaseModel):
+    session_id: str
+
+
+class FolderUploadSessionFileResponse(BaseModel):
+    session_id: str
+    uploaded_files: int
+
+
 # ---------- 文件夹上传 ----------
 class UploadFolderResponse(BaseModel):
     imageset_id: str

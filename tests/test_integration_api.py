@@ -1972,6 +1972,58 @@ def test_upload_folder_supports_images_labels_subfolders(app_client, tmp_path: P
     assert items[0]["label_exists"] is True
 
 
+def test_upload_folder_accepts_more_than_default_multipart_file_limit(app_client):
+    client, _, _ = app_client
+    payload_files = [
+        ("files", (f"images/sample_{idx:04d}.jpg", b"x", "image/jpeg"))
+        for idx in range(1001)
+    ]
+
+    resp = client.post(
+        "/api/imagesets/upload-folder",
+        files=payload_files,
+        data={"imageset_name": "large_folder_set"},
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["image_count"] == 1001
+
+
+def test_folder_upload_session_uploads_files_incrementally(app_client, tmp_path: Path):
+    client, _, _ = app_client
+    image_path = tmp_path / "chunked.jpg"
+    _make_image(image_path)
+
+    start = client.post(
+        "/api/imagesets/upload-folder/session",
+        json={"imageset_name": "session_dataset", "total_files": 2, "total_bytes": image_path.stat().st_size + 22},
+    )
+    assert start.status_code == 200, start.text
+    session_id = start.json()["session_id"]
+
+    image_upload = client.post(
+        f"/api/imagesets/upload-folder/session/{session_id}/file",
+        files={"file": ("chunked.jpg", image_path.read_bytes(), "image/jpeg")},
+        data={"relative_path": "dataset/images/chunked.jpg"},
+    )
+    assert image_upload.status_code == 200, image_upload.text
+    assert image_upload.json()["uploaded_files"] == 1
+
+    label_upload = client.post(
+        f"/api/imagesets/upload-folder/session/{session_id}/file",
+        files={"file": ("chunked.txt", b"0 0.5 0.5 0.2 0.2\n", "text/plain")},
+        data={"relative_path": "dataset/labels/chunked.txt"},
+    )
+    assert label_upload.status_code == 200, label_upload.text
+    assert label_upload.json()["uploaded_files"] == 2
+
+    finish = client.post(f"/api/imagesets/upload-folder/session/{session_id}/finish")
+    assert finish.status_code == 200, finish.text
+    data = finish.json()
+    assert data["name"] == "session_dataset"
+    assert data["image_count"] == 1
+    assert data["labels_imported"] == 1
+
+
 def test_upload_folder_imports_class_names_from_classes_txt(app_client, tmp_path: Path):
     client, app, _ = app_client
     image_path = tmp_path / "named.jpg"
@@ -2546,6 +2598,49 @@ def test_refine_save_new_class_updates_labels_and_supports_rollback(app_client):
     rollback_images_resp = client.get(f"/api/imagesets/{imageset_id}/images?page=1&page_size=10")
     assert rollback_images_resp.status_code == 200, rollback_images_resp.text
     assert rollback_images_resp.json()["class_names"] == {"0": "person"}
+
+
+def test_refine_segment_imageset_coerces_legacy_detect_rows(app_client):
+    client, app, tmp_path = app_client
+
+    image_path = tmp_path / "refine_segment_legacy.jpg"
+    _make_image(image_path)
+
+    upload_resp = client.post(
+        "/api/imagesets/upload-folder",
+        files=[("files", ("refine_segment_legacy.jpg", image_path.read_bytes(), "image/jpeg"))],
+        data={"imageset_name": "refine_segment_legacy_set"},
+    )
+    assert upload_resp.status_code == 200, upload_resp.text
+    imageset_id = upload_resp.json()["imageset_id"]
+
+    imageset = app.state.app_state.get_imageset(imageset_id)
+    assert imageset is not None
+    imageset.label_task = "segment"
+    app.state.app_state._save_imageset(imageset)
+
+    imageset_dir = Path(imageset.dir_path)
+    labels_dir = imageset_dir / "labels"
+    labels_dir.mkdir(parents=True, exist_ok=True)
+    label_path = labels_dir / f"{Path(imageset.images[0].filename).stem}.txt"
+    label_path.write_text("0 0.500000 0.500000 0.250000 0.300000\n", encoding="utf-8")
+    (labels_dir / "classes.txt").write_text("object\n", encoding="utf-8")
+
+    image_id = imageset.images[0].id
+    refine_resp = client.get(f"/api/images/{image_id}/refine")
+    assert refine_resp.status_code == 200, refine_resp.text
+    payload = refine_resp.json()
+    assert payload["label_task"] == "segment"
+    assert len(payload["boxes"]) == 1
+    assert payload["boxes"][0]["shape_type"] == "segment"
+    assert len(payload["boxes"][0]["points"]) == 4
+
+    save_resp = client.post(
+        f"/api/images/{image_id}/refine",
+        json={"boxes": payload["boxes"], "new_classes": [], "operator": "alice"},
+    )
+    assert save_resp.status_code == 200, save_resp.text
+    assert len(label_path.read_text(encoding="utf-8").split()) == 9
 
 
 def test_refine_save_empty_boxes_removes_label_and_rollback_restores_it(app_client):

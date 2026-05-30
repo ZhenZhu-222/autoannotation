@@ -76,7 +76,13 @@ async function qwenAutoAnnotate() {
   $("qwenStatus").textContent = "创建 AI 打标任务...";
   if ($("qwenArtifacts")) $("qwenArtifacts").innerHTML = "";
   try {
-    const job = await api("/api/qwen/annotate/jobs", { method: "POST", body: form });
+    const job = await uploadFormWithProgress("/api/qwen/annotate/jobs", {
+      method: "POST",
+      body: form,
+      statusEl: "qwenStatus",
+      label: refs.length ? `上传参考图 ${refs.length} 张` : "创建 AI 打标任务",
+      processingText: "上传完成，正在创建 AI 打标任务...",
+    });
     state.currentQwenJob = job.id;
     const refInput = $("qwenRefImages");
     if (refInput) refInput.value = "";

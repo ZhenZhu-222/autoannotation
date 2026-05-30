@@ -6,10 +6,6 @@ from __future__ import annotations
 from pydantic import BaseModel
 
 
-class ImportLocalVideoRequest(BaseModel):
-    path: str
-
-
 # ---------- 视频上传/导入响应 ----------
 class VideoUploadResponse(BaseModel):
     video_id: str

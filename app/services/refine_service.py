@@ -78,7 +78,20 @@ def _load_image_size(image_path: Path) -> tuple[int, int]:
 
 # 将一行 YOLO 标签转为前端编辑器所需的 box dict（像素坐标，含类别名）
 def _yolo_line_to_box(line: str, width: int, height: int, class_names: dict[int, str], box_id: str, label_task: str) -> dict[str, Any] | None:
-    parsed = parse_label_line(line, label_task)
+    target_task = normalize_label_task(label_task)
+    parsed = parse_label_line(line, target_task)
+    if parsed is None and target_task != "detect":
+        # Legacy repair: older UI versions could save 5-column detect rows
+        # into a segment/obb imageset. Show them as rectangular polygons so
+        # the next save rewrites them in the imageset's real task format.
+        fallback = parse_label_line(line, "detect")
+        if fallback is not None:
+            x1, y1, x2, y2 = fallback.bbox_pixels(width, height)
+            rect_points = [(x1, y1), (x2, y1), (x2, y2), (x1, y2)]
+            try:
+                parsed = points_to_shape(fallback.class_id, rect_points, width, height, target_task)
+            except ValueError:
+                parsed = None
     if parsed is None:
         return None
     points = parsed.points_pixels(width, height)

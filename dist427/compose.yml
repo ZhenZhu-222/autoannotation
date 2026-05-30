@@ -1,0 +1,30 @@
+name: autoannotation-v3
+services:
+  autoannotation:
+    image: autoannotation:v3
+    platform: linux/amd64
+    container_name: autoannotation
+    ports:
+      - "8010:8010"
+    environment:
+      AUTOANNOTATION_CONFIG: /app/config/runtime.json
+      AUTOANNOTATION_DATA_DIR: /app/data
+      AUTOANNOTATION_FRONT_DIR: /app/front
+      AUTOANNOTATION_LOGIN_REQUIRED: "true"
+      AUTOANNOTATION_CORS_ORIGINS: "http://127.0.0.1:8010,http://localhost:8010"
+
+      # 交付前必须改成客户自己的值
+      AUTOANNOTATION_ADMIN_USERNAME: root
+      AUTOANNOTATION_ADMIN_PASSWORD: CHANGE_STRONG_PASSWORD
+      AUTOANNOTATION_SESSION_SECRET: CHANGE_ME_RANDOM_32_CHARS
+      AUTOANNOTATION_LICENSE_UNLOCK_KEY: CHANGE_ME_LICENSE_UNLOCK_KEY
+
+      # AI 打标配置；不用 AI 打标可以留空 API Key
+      AUTOANNOTATION_QWEN_API_KEY: ""
+      AUTOANNOTATION_QWEN_API_BASE: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+      AUTOANNOTATION_QWEN_MODEL: qwen-vl-max-latest
+      AUTOANNOTATION_QWEN_TIMEOUT: "45"
+    volumes:
+      - ./autoannotation-data:/app/data
+      - /etc/machine-id:/etc/machine-id:ro
+    restart: unless-stopped

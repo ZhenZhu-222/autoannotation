@@ -5,18 +5,22 @@
 # ============================================================
 from __future__ import annotations
 
+import json
+import shutil
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse
+from starlette.datastructures import UploadFile as StarletteUploadFile
 
 from app.api.deps import get_state, get_task_manager
 from app.core.auth import require_admin, require_login
+from app.core import config as app_config
 from app.core.config import MAX_IMAGE_UPLOAD_BYTES
 from app.core.rbac import can_operate_imageset
 from app.core.state import AppState
-from app.core.utils import stream_upload_to_file
+from app.core.utils import new_id, stream_upload_to_file
 from app.schemas.image import (
     BatchDeleteImagesRequest,
     BatchDeleteImagesResponse,
@@ -32,6 +36,9 @@ from app.schemas.image import (
     RemapClassesResponse,
     ReviewSummaryResponse,
     SaveImageRefineRequest,
+    StartFolderUploadSessionRequest,
+    StartFolderUploadSessionResponse,
+    FolderUploadSessionFileResponse,
     UpdateImageReviewRequest,
     UploadFolderResponse,
 )
@@ -41,6 +48,48 @@ from app.services.remap_service import RemapService
 from app.services.task_manager import TaskManager
 
 router = APIRouter(prefix="/api", tags=["imagesets"])
+UNLIMITED_FOLDER_UPLOAD_FILES = float("inf")
+FOLDER_UPLOAD_MAX_FIELDS = 20
+FOLDER_SESSION_ROOT_NAME = "folder_sessions"
+
+
+def _folder_session_root() -> Path:
+    root = app_config.DATA_DIR / "uploads" / FOLDER_SESSION_ROOT_NAME
+    root.mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def _folder_session_dir(session_id: str) -> Path:
+    text = str(session_id or "").strip()
+    if not text.startswith("folder_upload_") or any(ch in text for ch in "/\\"):
+        raise HTTPException(status_code=404, detail="上传会话不存在")
+    root = _folder_session_root().resolve()
+    session_dir = (root / text).resolve()
+    if not session_dir.is_relative_to(root):
+        raise HTTPException(status_code=404, detail="上传会话不存在")
+    return session_dir
+
+
+def _read_folder_session(session_id: str, current_user) -> tuple[Path, dict]:
+    session_dir = _folder_session_dir(session_id)
+    manifest_path = session_dir / "manifest.json"
+    if not manifest_path.exists():
+        raise HTTPException(status_code=404, detail="上传会话不存在或已完成")
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=400, detail="上传会话状态损坏，请重新上传") from exc
+    owner_id = str(manifest.get("creator_id") or "")
+    if owner_id and owner_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="无权访问该上传会话")
+    return session_dir, manifest
+
+
+def _write_folder_session(session_dir: Path, manifest: dict) -> None:
+    (session_dir / "manifest.json").write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
 
 
 def _ensure_imageset_access(state: AppState, imageset_id: str, user) -> None:
@@ -275,26 +324,99 @@ def delete_images_batch(
 # 批量上传图片文件夹（支持同时上传图片和标签文件，自动创建图片集）
 @router.post("/imagesets/upload-folder")
 async def upload_folder_images(
-    files: list[UploadFile] = File(...),
-    imageset_name: str | None = Form(default=None),
+    request: Request,
     state: AppState = Depends(get_state),
     current_user=Depends(require_login),
 ) -> UploadFolderResponse:
-    if not files:
-        raise HTTPException(status_code=400, detail="未上传文件")
-    with TemporaryDirectory(prefix="api_upload_folder_") as tmp_dir:
-        tmp_path = Path(tmp_dir)
-        staged_files: list[tuple[str, Path]] = []
-        for idx, file in enumerate(files):
-            staged = tmp_path / f"{idx:06d}.bin"
-            try:
-                await stream_upload_to_file(file, staged, MAX_IMAGE_UPLOAD_BYTES)
-            except ValueError as exc:
-                raise HTTPException(status_code=413, detail=str(exc)) from None
-            staged_files.append((file.filename or "image.jpg", staged))
-        return ImageSetService.create_from_staged_paths(
-            state=state, files=staged_files, name=imageset_name, creator_id=current_user.id,
-        )
+    async with request.form(
+        max_files=UNLIMITED_FOLDER_UPLOAD_FILES,
+        max_fields=FOLDER_UPLOAD_MAX_FIELDS,
+    ) as form:
+        files = [item for item in form.getlist("files") if isinstance(item, StarletteUploadFile)]
+        raw_name = form.get("imageset_name")
+        imageset_name = raw_name.strip() if isinstance(raw_name, str) and raw_name.strip() else None
+        if not files:
+            raise HTTPException(status_code=400, detail="未上传文件")
+        with TemporaryDirectory(prefix="api_upload_folder_") as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            staged_files: list[tuple[str, Path]] = []
+            for idx, file in enumerate(files):
+                staged = tmp_path / f"{idx:06d}.bin"
+                try:
+                    await stream_upload_to_file(file, staged, MAX_IMAGE_UPLOAD_BYTES)
+                except ValueError as exc:
+                    raise HTTPException(status_code=413, detail=str(exc)) from None
+                staged_files.append((file.filename or "image.jpg", staged))
+            return ImageSetService.create_from_staged_paths(
+                state=state, files=staged_files, name=imageset_name, creator_id=current_user.id,
+            )
+
+
+# 创建逐文件上传会话：用于大目录跨机器上传，避免一个 multipart 请求过大导致断线
+@router.post("/imagesets/upload-folder/session")
+def start_folder_upload_session(
+    req: StartFolderUploadSessionRequest,
+    current_user=Depends(require_login),
+) -> StartFolderUploadSessionResponse:
+    session_id = new_id("folder_upload")
+    session_dir = _folder_session_dir(session_id)
+    (session_dir / "files").mkdir(parents=True, exist_ok=True)
+    manifest = {
+        "session_id": session_id,
+        "imageset_name": (req.imageset_name or "").strip(),
+        "total_files": max(0, int(req.total_files or 0)),
+        "total_bytes": max(0, int(req.total_bytes or 0)),
+        "creator_id": current_user.id,
+        "files": [],
+    }
+    _write_folder_session(session_dir, manifest)
+    return {"session_id": session_id}
+
+
+@router.post("/imagesets/upload-folder/session/{session_id}/file")
+async def upload_folder_session_file(
+    session_id: str,
+    relative_path: str = Form(...),
+    file: UploadFile = File(...),
+    current_user=Depends(require_login),
+) -> FolderUploadSessionFileResponse:
+    session_dir, manifest = _read_folder_session(session_id, current_user)
+    files_dir = session_dir / "files"
+    files_dir.mkdir(parents=True, exist_ok=True)
+    idx = len(manifest.get("files") or [])
+    staged = files_dir / f"{idx:08d}.bin"
+    try:
+        await stream_upload_to_file(file, staged, MAX_IMAGE_UPLOAD_BYTES)
+    except ValueError as exc:
+        staged.unlink(missing_ok=True)
+        raise HTTPException(status_code=413, detail=f"{relative_path}: {exc}") from None
+    rel = str(relative_path or file.filename or "image.jpg").replace("\\", "/").strip("/") or "image.jpg"
+    manifest.setdefault("files", []).append({"filename": rel, "path": str(staged)})
+    _write_folder_session(session_dir, manifest)
+    return {"session_id": session_id, "uploaded_files": len(manifest["files"])}
+
+
+@router.post("/imagesets/upload-folder/session/{session_id}/finish")
+def finish_folder_upload_session(
+    session_id: str,
+    state: AppState = Depends(get_state),
+    current_user=Depends(require_login),
+) -> UploadFolderResponse:
+    session_dir, manifest = _read_folder_session(session_id, current_user)
+    staged_files = [
+        (str(item.get("filename") or "image.jpg"), Path(str(item.get("path") or "")))
+        for item in manifest.get("files", [])
+    ]
+    if not staged_files:
+        raise HTTPException(status_code=400, detail="上传会话中没有文件")
+    result = ImageSetService.create_from_staged_paths(
+        state=state,
+        files=staged_files,
+        name=(manifest.get("imageset_name") or None),
+        creator_id=current_user.id,
+    )
+    shutil.rmtree(session_dir, ignore_errors=True)
+    return result
 
 
 # 查询图片集当前的类别 ID→名称映射表（用于重映射前预览）

@@ -45,6 +45,12 @@ function setActivePanel(panelId) {
   document.querySelectorAll(".nav-tab[data-panel-target]").forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.panelTarget === panelId);
   });
+  if (panelId === "panel-refine" && state.refineImageData) {
+    requestAnimationFrame(() => {
+      renderRefineOverlay();
+      _refineFocusWorkspace();
+    });
+  }
 }
 
 function bindSectionNav() {
@@ -954,15 +960,16 @@ function renderResourceModels() {
 
 async function uploadResourceFolderAsImageset() {
   const files = Array.from($("resourceFolderInput")?.files || []);
-  if (!files.length) { toast("请先选择图片目录", "warning"); return; }
-  const form = new FormData();
-  appendFolderFiles(form, files);
-  const root = String(files[0].webkitRelativePath || files[0].name).split("/")[0];
-  const name = $("resourceFolderName")?.value.trim() || root || `folder_${Date.now()}`;
-  form.append("imageset_name", name);
+  if (!files.length) {
+    toast("请选择图片目录", "warning");
+    return;
+  }
+  const browserRoot = String(files[0].webkitRelativePath || files[0].name).split("/")[0];
+  const name = $("resourceFolderName")?.value.trim() || browserRoot || `folder_${Date.now()}`;
+
   if ($("resourceFolderStatus")) $("resourceFolderStatus").textContent = "目录上传中...";
   try {
-    const data = await api("/api/imagesets/upload-folder", { method: "POST", body: form });
+    const data = await uploadFolderFilesWithSession(files, name, "resourceFolderStatus");
     if ($("resourceFolderStatus")) $("resourceFolderStatus").textContent = datasetUploadSummary(data);
     await refreshImagesetSelects();
     setSelectValue("galleryImageset", data.imageset_id);
@@ -1099,7 +1106,13 @@ async function uploadModel() {
   if (classes) form.append("classes_file", classes);
   $("modelUploadStatus").textContent = "上传中...";
   try {
-    const data = await api("/api/models/upload", { method: "POST", body: form });
+    const data = await uploadFormWithProgress("/api/models/upload", {
+      method: "POST",
+      body: form,
+      statusEl: "modelUploadStatus",
+      label: "上传模型权重",
+      processingText: "上传完成，正在读取模型类别...",
+    });
     $("modelUploadStatus").textContent = `模型保存成功: ${data.name}，类别数 ${data.classes.length}`;
     await refreshModels();
     setSelectValue("modelSelect", data.model_id);
@@ -1113,37 +1126,30 @@ async function uploadModel() {
 /* ========== Video Extract ========== */
 async function uploadVideoAndExtract() {
   const file = $("videoFile").files[0];
-  const localPath = $("videoLocalPath")?.value.trim() || "";
-  if (!file && !localPath) {
-    toast("请选择视频文件或粘贴本机路径", "warning");
-    $("extractStatus").textContent = "请选择视频文件或粘贴本机路径";
+  if (!file) {
+    toast("请选择视频文件", "warning");
+    $("extractStatus").textContent = "请选择视频文件";
     return;
   }
-  // 选了文件时优先走上传，只有没选文件且填了路径才走本地导入
-  const useLocalImport = !file && !!localPath;
-  if (!useLocalImport) {
-    const validation = validateVideoFile(file);
-    if (!validation.ok) {
-      toast(validation.message, "warning");
-      $("extractStatus").textContent = validation.message;
-      return;
-    }
+  const validation = validateVideoFile(file);
+  if (!validation.ok) {
+    toast(validation.message, "warning");
+    $("extractStatus").textContent = validation.message;
+    return;
   }
   const sec = Number($("sampleSeconds").value || "1");
   const imagesetName = $("extractImagesetName").value.trim();
-  $("extractStatus").textContent = useLocalImport ? "导入本地视频中..." : "上传视频中...";
+  $("extractStatus").textContent = "上传视频中...";
   try {
-    let uploaded;
-    if (useLocalImport) {
-      uploaded = await api("/api/videos/import-local", {
-        method: "POST",
-        body: { path: localPath },
-      });
-    } else {
-      const form = new FormData();
-      form.append("file", file);
-      uploaded = await api("/api/videos/upload", { method: "POST", body: form });
-    }
+    const form = new FormData();
+    form.append("file", file);
+    const uploaded = await uploadFormWithProgress("/api/videos/upload", {
+      method: "POST",
+      body: form,
+      statusEl: "extractStatus",
+      label: "上传视频",
+      processingText: "上传完成，正在登记视频...",
+    });
     $("extractStatus").textContent = "创建抽帧任务...";
     const job = await api("/api/extract/jobs", {
       method: "POST",
@@ -1508,6 +1514,15 @@ function bindEvents() {
   window.addEventListener("resize", function() {
     if (state.refineImageData) renderRefineOverlay();
   });
+  if (window.ResizeObserver && $("refineStage")) {
+    const refineResizeObserver = new ResizeObserver(() => {
+      if (state.refineImageData && $("panel-refine")?.classList.contains("active")) {
+        renderRefineOverlay();
+      }
+    });
+    refineResizeObserver.observe($("refineStage"));
+    if ($("refineImage")) refineResizeObserver.observe($("refineImage"));
+  }
   if ($("refineOverlay")) {
     $("refineOverlay").addEventListener("mousedown", (ev) => {
       if (ev.button !== 0) return;

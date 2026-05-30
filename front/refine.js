@@ -41,6 +41,10 @@ function _refineLockedShapeTask() {
   const data = state.refineImageData;
   const imagesetId = data?.imageset_id || $("refineImageset")?.value || "";
   const meta = state.imagesetMeta?.[imagesetId] || {};
+  const metaTask = normalizeLabelTask(meta.label_task || data?.label_task || "detect");
+  if (metaTask !== "detect") {
+    return metaTask;
+  }
   const hasBoxes = Array.isArray(data?.boxes) && data.boxes.length > 0;
   const labelCount = Number(meta.label_count || 0);
   if (hasBoxes || labelCount > 0) {
@@ -827,7 +831,7 @@ function renderRefineOverlay() {
     overlay.appendChild(el);
   });
   if (state.refineCreateMode && state.refineDraftPoints.length >= 1 && normalizeLabelTask($("refineShapeType")?.value || data.label_task || "detect") === "segment") {
-    const svg = document.createElement("svg");
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     const draftShapeType = normalizeLabelTask($("refineShapeType")?.value || data.label_task || "detect");
     const hoverPoint = state.refineDraftHoverPoint ? [state.refineDraftHoverPoint.x, state.refineDraftHoverPoint.y] : null;
     const draftPoints = state.refineDraftPoints.slice();
@@ -841,7 +845,7 @@ function renderRefineOverlay() {
     )).join("") + (hoverPoint
       ? `<circle cx="${hoverPoint[0]}" cy="${hoverPoint[1]}" r="4.5" fill="rgba(16,185,129,0.72)" stroke="rgba(255,255,255,0.9)" stroke-width="1.5"></circle>`
       : "");
-    svg.className = "refine-draft-poly";
+    svg.setAttribute("class", "refine-draft-poly");
     svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
     svg.innerHTML = `${pathMarkup}${pointMarkup}`;
     overlay.appendChild(svg);
@@ -1127,7 +1131,7 @@ async function loadRefineImageset(options = {}) {
   renderRefineImageSelect();
   const shapeTypeSel = $("refineShapeType");
   const imagesetMeta = state.imagesetMeta?.[imagesetId];
-  if (shapeTypeSel && imagesetMeta?.label_count) {
+  if (shapeTypeSel && imagesetMeta?.label_task) {
     shapeTypeSel.value = normalizeLabelTask(imagesetMeta.label_task || "detect");
   }
   if (!state.refineImages.length) {
